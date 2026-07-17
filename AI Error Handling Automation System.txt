@@ -1,0 +1,189 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": " AI Error Automation System",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Error Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "19f5ce16-f970-44af-98ed-8ad0216dfb9b",
+      "webhookId": "9e80985d-05fb-4223-bfc1-7881d3ff52e5"
+    },
+    {
+      "parameters": {
+        "functionCode": "const error = $json.body.error;\nconst module = $json.body.module;\nconst user = $json.body.user_id;\n\nreturn [{\n  error: error,\n  module: module,\n  user_id: user,\n  prompt: `Convert this error into a clear support question:\\nError: ${error}\\nModule: ${module}`\n}];"
+      },
+      "name": "Prepare Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        0
+      ],
+      "id": "f0ed91f7-465e-4407-a932-34b8f8fd8228"
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{\n  error: $json.error,\n  module: $json.module,\n  user_id: $json.user_id,\n  ai_question: $json.output\n}];"
+      },
+      "name": "Format Email Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        384,
+        0
+      ],
+      "id": "01f0afe6-c5a4-4f1b-8b9f-75bac3d47811"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1008,
+        0
+      ],
+      "id": "1ccb79f8-802f-4da6-8a66-a71ed12da1b1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.10.133:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "=Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "llama3"
+            },
+            {
+              "name": "prompt",
+              "value": "=Hello:{{ $('Error Webhook').item.json.body.prompt }}"
+            },
+            {
+              "name": "stream",
+              "value": "={{false}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        96,
+        0
+      ],
+      "id": "e32f2568-e8f2-45be-87bf-8d3334efeac8",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "subject": "=Support Request - Error Issue",
+        "message": "={{ $('HTTP Request').item.json.response }}",
+        "toList": [
+          "=mohdjaved9462@gmail.com"
+        ],
+        "additionalFields": {}
+      },
+      "name": "Support Team Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 1,
+      "position": [
+        688,
+        0
+      ],
+      "id": "9eaeeb3a-e173-4de0-bbc9-329618ae1196",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Vw8woijR0IciVWhU",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email Data": {
+      "main": [
+        [
+          {
+            "node": "Support Team Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Format Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Support Team Send Email": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fc8ea56a9f77461efdbaf4ab14000fda259d6eb0a0ad047cd98c8f84ded3bdb0"
+  }
+}
