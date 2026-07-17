@@ -1,0 +1,141 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -672,
+        32
+      ],
+      "id": "9e16147f-83fb-4dd5-aaf0-2350e60c95e7",
+      "name": "🕒 Daily Attendance Scheduler"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1bWtRiUMkRAiJlaQB6K5OT8bFq3LmpJFje12-iCe7UDQ",
+          "mode": "list",
+          "cachedResultName": "DEV_SCRUM_2026",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bWtRiUMkRAiJlaQB6K5OT8bFq3LmpJFje12-iCe7UDQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 803285564,
+          "mode": "list",
+          "cachedResultName": "Scrum Attendance",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bWtRiUMkRAiJlaQB6K5OT8bFq3LmpJFje12-iCe7UDQ/edit#gid=803285564"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -320,
+        32
+      ],
+      "id": "0b1a2e0b-671e-423d-971a-13638721c6ba",
+      "name": "📋 Read Attendance Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T7iyQUm3fh7LiOMO",
+          "name": "Dev19 Google sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Header row\nconst headerRow = items.find(i => i.json.row_number === 5);\n\nif (!headerRow) {\n  throw new Error(\"Header row not foun\");\n}\n\n// Build headers\nconst headers = {};\nfor (const key of Object.keys(headerRow.json)) {\n  headers[key] = String(headerRow.json[key]).replace(/\\n/g, \" \").trim();\n}\n\n// Today's Date\nconst today = new Date();\nconst day = String(today.getDate()).padStart(2, \"0\");\nconst month = today.toLocaleString(\"en-US\", { month: \"short\" });\n\nconst todayText = `${day} ${month}`;\n\n// Find today's column\nlet todayColumn = null;\n\nfor (const [key, value] of Object.entries(headers)) {\n    if (value.startsWith(todayText)) {\n        todayColumn = key;\n        break;\n    }\n}\n\n// Agar aaj ka column sheet me nahi hai\nif (!todayColumn) {\n\n    const html = `\n    <h2>Daily Attendance Report</h2>\n\n    <p><b>Date:</b> ${todayText}</p>\n\n    <p style=\"color:#f59e0b;font-size:16px;\">\n    Today is no scrum data found attendance column is not available in the sheet.\n    </p>\n    `;\n\n    return [{\n        json: {\n            date: todayText,\n            total: 0,\n            present: 0,\n            absent: 0,\n            late: 0,\n            leave: 0,\n            html,\n            skip: true\n        }\n    }];\n}\n\n// Employee rows\nconst employees = items.filter(i =>\n    i.json.row_number >= 6 &&\n    i.json.col_2 &&\n    i.json.col_2.trim() !== \"\"\n);\n\nlet present = 0;\nlet absent = 0;\nlet late = 0;\nlet leave = 0;\n\nlet tableRows = \"\";\n\nfor (const emp of employees) {\n\n    const name = emp.json.col_2;\n    const status = String(emp.json[todayColumn] || \"\").trim().toUpperCase();\n\n    let text = \"\";\n    let color = \"\";\n\n    switch(status){\n\n        case \"P\":\n            present++;\n            text = \"Present\";\n            color = \"#16a34a\";\n            break;\n\n        case \"A\":\n            absent++;\n            text = \"Absent\";\n            color = \"#dc2626\";\n            break;\n\n        case \"L\":\n            late++;\n            text = \"Late\";\n            color = \"#f59e0b\";\n            break;\n\n        case \"LV\":\n            leave++;\n            text = \"Leave\";\n            color = \"#2563eb\";\n            break;\n\n        default:\n            text = \"Not Marked\";\n            color = \"#6b7280\";\n    }\n\n    tableRows += `\n<tr>\n<td style=\"padding:8px\">${name}</td>\n<td style=\"padding:8px;font-weight:bold;color:${color}\">\n${text}\n</td>\n</tr>`;\n}\n\nconst total = employees.length;\n\nconst attendancePercent =\ntotal\n? (((present + late) / total) * 100).toFixed(1)\n: 0;\n\nconst html = `\n<div style=\"font-family:Arial\">\n\n<h2 style=\"color:#0F4C81\">\nDaily Attendance Report\n</h2>\n\n<p><b>Date :</b> ${todayText}</p>\n\n<table border=\"1\" cellspacing=\"0\" cellpadding=\"6\"\nstyle=\"border-collapse:collapse;width:100%\">\n\n<tr style=\"background:#0F4C81;color:white\">\n\n<th>Developer</th>\n\n<th>Status</th>\n\n</tr>\n\n${tableRows}\n\n</table>\n\n<br>\n\n<table border=\"1\" cellspacing=\"0\" cellpadding=\"8\"\nstyle=\"border-collapse:collapse\">\n\n<tr>\n<td><b>Total Employees</b></td>\n<td>${total}</td>\n</tr>\n\n<tr>\n<td style=\"color:#16a34a\"><b>Present</b></td>\n<td>${present}</td>\n</tr>\n\n<tr>\n<td style=\"color:#dc2626\"><b>Absent</b></td>\n<td>${absent}</td>\n</tr>\n\n<tr>\n<td style=\"color:#f59e0b\"><b>Late</b></td>\n<td>${late}</td>\n</tr>\n\n<tr>\n<td style=\"color:#2563eb\"><b>Leave</b></td>\n<td>${leave}</td>\n</tr>\n\n<tr>\n<td><b>Attendance %</b></td>\n<td>${attendancePercent}%</td>\n</tr>\n\n</table>\n\n<br>\n\n<p>\nRegards,<br>\n<b>Attendance Automation System</b>\n</p>\n\n</div>\n`;\n\nreturn [{\n    json:{\n        date: todayText,\n        total,\n        present,\n        absent,\n        late,\n        leave,\n        attendancePercent,\n        html\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        32
+      ],
+      "id": "f9bf6708-88c6-40a4-aa48-ab6c0a0ab0a8",
+      "name": "📊 Generate Attendance Report"
+    },
+    {
+      "parameters": {
+        "toRecipients": "pm@invadertech.com",
+        "subject": "=Daily Attendance Report - {{$json.date}}",
+        "bodyContent": "={{$json.html}}",
+        "additionalFields": {
+          "from": "info@invadertech.com",
+          "bodyContentType": "html"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        320,
+        32
+      ],
+      "id": "12bfc82d-391b-4974-af34-ee06e834053c",
+      "name": "📧 Send Attendance Email",
+      "webhookId": "ef5bc812-c9f4-4b86-a2ae-f57f24912eab",
+      "alwaysOutputData": false,
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "R1M1qFU4pXZjUTaD",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "🕒 Daily Attendance Scheduler": {
+      "main": [
+        [
+          {
+            "node": "📋 Read Attendance Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Read Attendance Sheet": {
+      "main": [
+        [
+          {
+            "node": "📊 Generate Attendance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Generate Attendance Report": {
+      "main": [
+        [
+          {
+            "node": "📧 Send Attendance Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Send Attendance Email": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fc8ea56a9f77461efdbaf4ab14000fda259d6eb0a0ad047cd98c8f84ded3bdb0"
+  }
+}
